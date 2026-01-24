@@ -88,6 +88,47 @@ app.post('/points', async (req, res) => {
     }
 });
 
+// 3b. Update a drop-off point
+app.put('/points/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name, address, postal_code, latitude, longitude } = req.body;
+    try {
+        const [result] = await pool.execute(
+            'UPDATE drop_off_points SET name=?, address=?, postal_code=?, latitude=?, longitude=? WHERE id=?',
+            [name, address, postal_code, latitude, longitude, id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Point not found' });
+        }
+
+        res.json({ message: `Point ${name} updated successfully` });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error - could not update point' });
+    }
+});
+
+// 3c. Delete a drop-off point
+app.delete('/points/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await pool.execute(
+            'DELETE FROM drop_off_points WHERE id=?',
+            [id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Point not found' });
+        }
+
+        res.json({ message: 'Point deleted successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error - could not delete point' });
+    }
+});
+
 // 4. Submit a recycling log
 app.post('/logs', async (req, res) => {
     const { user_id, point_id, material_id, weight_kg } = req.body;
