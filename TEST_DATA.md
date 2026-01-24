@@ -58,10 +58,9 @@ async function testApi() {
     console.log(`%c \n--- TEST 2: LOGS ---`, 'font-weight: bold;');
 
     // 1. ADD LOG
-    // Note: Assuming we have a valid point_id (we just made one) and material_id (usually 1-5)
+    // Note: Assuming we have a valid point_id (we just made one) and material_id (usually 1-5 from generic types)
     // We will use pointId from above and material_id: 1 (Paper)
     const newLog = {
-        user_id: 1, // Test User
         point_id: pointId,
         material_id: 1, 
         weight_kg: 5.5
@@ -72,25 +71,18 @@ async function testApi() {
         method: 'POST', body: JSON.stringify(newLog),
         headers: { 'Content-Type': 'application/json' }
     });
-    // POST /logs usually returns { message: "..." } but NO ID currently.
-    // To test Edit/Delete, we might need to find the log ID.
-    // If the server doesn't return ID on Create, we have to fetch recent logs to find it.
     
-    // Let's assume you update the server to return ID, or we fetch it.
-    // Currently your server DOES NOT return ID for logs.
-    // I will try to fetch logs and find the one we just added.
     if (!res.ok) { console.error("❌ Add Log Failed", await res.text()); }
     else {
         console.log(`✅ Added Log! (Fetching ID...)`);
         
-        // Wait a bit
+        // Wait a bit for DB consistency
         await new Promise(r => setTimeout(r, 1000));
         
         // Fetch logs to find our log
         const logsRes = await fetch(`${baseUrl}/logs`);
         const logs = await logsRes.json();
-        // Assuming the latest log is ours (since we just added it)
-        const myLog = logs[0]; // Ordered by DESC in your server
+        const myLog = logs[0]; // Assuming the latest log is ours (since we just added it)
         
         if (myLog && myLog.weight_kg == 5.5) {
              const logId = myLog.id;
@@ -139,7 +131,6 @@ testApi();
 **POST** `https://sg-green-plan-server.onrender.com/logs`
 ```json
 {
-  "user_id": 101,
   "point_id": 5,
   "material_id": 2,
   "weight_kg": 10.5

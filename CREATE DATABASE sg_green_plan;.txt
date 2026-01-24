@@ -49,7 +49,6 @@ ON DUPLICATE KEY UPDATE point_id=point_id;
 
 CREATE TABLE recycling_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT,                         -- To track who is recycling
     point_id INT,                        -- Which bin was used
     material_id INT,                     -- What was recycled (Paper, Glass, etc.)
     weight_kg DECIMAL(5, 2),             -- THE DATA YOU WANT: e.g., 2.50kg
@@ -57,3 +56,22 @@ CREATE TABLE recycling_logs (
     FOREIGN KEY (point_id) REFERENCES drop_off_points(id),
     FOREIGN KEY (material_id) REFERENCES recyclable_types(id)
 );
+
+-- INSERT INTO recyclable_types (id, material_name, icon_url) 
+-- VALUES (1, 'Plastic', 'https://ychef.files.bbci.co.uk/2000x1329/p08xhq56.jpeg');
+
+-- INSERT INTO recyclable_types (id, material_name, icon_url) 
+-- VALUES (2, 'Paper', 'https://cdn.recyclopedia.sg/strapi-assets/black_and_white_paper_1706eb7bd1.jpg');
+
+-- INSERT INTO recyclable_types (id, material_name, icon_url) 
+-- VALUES (3, 'Glass', 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRq_Ev5zPXnLNiDOkhZ_LUQeS31ekEj8Aj6Ew&s');
+
+-- UPDATE recyclable_types 
+-- SET icon_url = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRq_Ev5zPXnLNiDOkhZ_LUQeS31ekEj8Aj6Ew&s' 
+-- WHERE id = 3;
+
+-- INSERT INTO recyclable_types (id, material_name, icon_url) 
+-- VALUES (4, 'Metal', 'https://www.meadmetals.com/hs-fs/hubfs/Blog/Metal-Steel.jpg?width=720&height=377&name=Metal-Steel.jpg');
+
+-- INSERT INTO recyclable_types (id, material_name, icon_url) 
+-- VALUES (5, 'Electronic Waste', 'https://recyclinginside.com/wp-content/uploads/2024/07/E-Waste_5_Ways_to_Boost_E-Recycling_and_Why_it_Matters.jpg');

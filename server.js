@@ -129,13 +129,34 @@ app.delete('/points/:id', async (req, res) => {
     }
 });
 
+// 5. Get recent logs (optional, helpful for frontend)
+app.get('/logs', async (req, res) => {
+    try {
+        const query = `
+            SELECT l.id, l.weight_kg, l.logged_at, 
+                   m.material_name, p.name as point_name
+            FROM recycling_logs l
+            JOIN recyclable_types m ON l.material_id = m.id
+            JOIN drop_off_points p ON l.point_id = p.id
+            ORDER BY l.logged_at DESC
+            LIMIT 50
+        `;
+        const [rows] = await pool.query(query);
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error fetching logs' });
+    }
+});
+
+
 // 4. Submit a recycling log
 app.post('/logs', async (req, res) => {
-    const { user_id, point_id, material_id, weight_kg } = req.body;
+    const { point_id, material_id, weight_kg } = req.body;
     try {
         await pool.execute(
-            'INSERT INTO recycling_logs (user_id, point_id, material_id, weight_kg) VALUES (?, ?, ?, ?)',
-            [user_id, point_id, material_id, weight_kg]
+            'INSERT INTO recycling_logs ( point_id, material_id, weight_kg) VALUES (?, ?, ?)',
+            [point_id, material_id, weight_kg]
         );
         res.status(201).json({ message: 'Recycling log added successfully' });
     } catch (err) {
@@ -185,25 +206,6 @@ app.delete('/logs/:id', async (req, res) => {
     }
 });
 
-// 5. Get recent logs (optional, helpful for frontend)
-app.get('/logs', async (req, res) => {
-    try {
-        const query = `
-            SELECT l.id, l.weight_kg, l.logged_at, 
-                   m.material_name, p.name as point_name
-            FROM recycling_logs l
-            JOIN recyclable_types m ON l.material_id = m.id
-            JOIN drop_off_points p ON l.point_id = p.id
-            ORDER BY l.logged_at DESC
-            LIMIT 50
-        `;
-        const [rows] = await pool.query(query);
-        res.json(rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Server error fetching logs' });
-    }
-});
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
