@@ -1,0 +1,59 @@
+CREATE DATABASE sg_green_plan;
+USE sg_green_plan;
+
+-- 1. Master list of recyclable types (Read-only for most users)
+CREATE TABLE recyclable_types (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    material_name VARCHAR(50) NOT NULL UNIQUE, -- e.g., 'Paper', 'E-waste', 'Glass'
+    icon_url VARCHAR(255)                      -- Path to a UI icon
+);
+
+-- 2. Drop-off locations (The core table for CRUD)
+CREATE TABLE drop_off_points (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,                -- e.g., 'HDB Block 123 Blue Bin'
+    address TEXT NOT NULL,
+    postal_code CHAR(6),
+    latitude DECIMAL(10, 8),                   -- For Map integration
+    longitude DECIMAL(11, 8),                  -- For Map integration
+    status ENUM('active', 'full', 'maintenance') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Bridge table (Since one point can accept many types)
+CREATE TABLE point_materials (
+    point_id INT,
+    material_id INT,
+    PRIMARY KEY (point_id, material_id),
+    FOREIGN KEY (point_id) REFERENCES drop_off_points(id) ON DELETE CASCADE,
+    FOREIGN KEY (material_id) REFERENCES recyclable_types(id) ON DELETE CASCADE
+);
+
+SELECT 
+    p.id, p.name, p.address, p.status,
+    GROUP_CONCAT(m.material_name SEPARATOR ', ') AS accepted_materials
+FROM drop_off_points p
+LEFT JOIN point_materials pm ON p.id = pm.point_id
+LEFT JOIN recyclable_types m ON pm.material_id = m.id
+GROUP BY p.id;
+
+INSERT INTO drop_off_points (id, name, address, postal_code) 
+VALUES (1, 'Test Bin', '123 Green Lane', '123456');
+
+INSERT INTO recyclable_types (id, material_name) 
+VALUES (3, 'Glass');
+
+INSERT INTO point_materials (point_id, material_id) 
+VALUES (1, 3) 
+ON DUPLICATE KEY UPDATE point_id=point_id;
+
+CREATE TABLE recycling_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,                         -- To track who is recycling
+    point_id INT,                        -- Which bin was used
+    material_id INT,                     -- What was recycled (Paper, Glass, etc.)
+    weight_kg DECIMAL(5, 2),             -- THE DATA YOU WANT: e.g., 2.50kg
+    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (point_id) REFERENCES drop_off_points(id),
+    FOREIGN KEY (material_id) REFERENCES recyclable_types(id)
+);
