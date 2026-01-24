@@ -144,6 +144,47 @@ app.post('/logs', async (req, res) => {
     }
 });
 
+// 4b. Update a recycling log (Fix typos)
+app.put('/logs/:id', async (req, res) => {
+    const { id } = req.params;
+    const { point_id, material_id, weight_kg } = req.body;
+    try {
+        const [result] = await pool.execute(
+            'UPDATE recycling_logs SET point_id=?, material_id=?, weight_kg=? WHERE id=?',
+            [point_id, material_id, weight_kg, id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Log not found' });
+        }
+
+        res.json({ message: 'Log updated successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error - could not update log' });
+    }
+});
+
+// 4c. Delete a recycling log
+app.delete('/logs/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await pool.execute(
+            'DELETE FROM recycling_logs WHERE id=?',
+            [id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Log not found' });
+        }
+
+        res.json({ message: 'Log deleted successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error - could not delete log' });
+    }
+});
+
 // 5. Get recent logs (optional, helpful for frontend)
 app.get('/logs', async (req, res) => {
     try {
