@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
+const fs = require('fs');
+
 const app = express();
 const port = 3000;
 const cors = require("cors");
@@ -33,16 +35,37 @@ app.use(
 );
 // 1. Create a Connection Pool based on your DBConfig
 // This is more efficient than creating a new connection for every request
-const pool = mysql.createPool({
+const dbConfig = {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     port: process.env.DB_PORT,
     waitForConnections: true,
-    connectionLimit: 10, // Adjusted to a safer limit for most free-tier DBs
+    connectionLimit: 10,
     queueLimit: 0,
-});
+};
+
+// Check if Aiven SSL cert exists
+if (fs.existsSync('./ca.pem')) {
+    dbConfig.ssl = {
+        ca: fs.readFileSync('./ca.pem'),
+        rejectUnauthorized: false
+    };
+    console.log('SSL Certificate found and loaded.');
+} else {
+    // Fallback for local development or if SSL not strictly enforced/provided differently
+    // Aiven REQUIRES SSL, so this might fail if file is missing.
+    // However, we set a default empty object or just don't set ssl key if not found.
+    // For Aiven, usually just having ssl: { rejectUnauthorized: false } works if CA isn't strictly checked,
+    // but best practice is to use the CA.
+    console.log('Warning: ca.pem not found. Connecting without specific SSL CA config (might fail for Aiven).');
+
+    // Some setups might just need this:
+    dbConfig.ssl = { rejectUnauthorized: false };
+}
+
+const pool = mysql.createPool(dbConfig);
 
 app.use(express.json());
 
