@@ -190,6 +190,65 @@ app.get('/types', authenticateToken, async (req, res) => {
     }
 });
 
+// Material Management Routes
+app.get('/materials', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM recyclable_types');
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error fetching materials' });
+    }
+});
+
+app.post('/materials', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { material_name, icon_url } = req.body;
+    try {
+        const [existing] = await pool.query('SELECT id FROM recyclable_types WHERE material_name = ?', [material_name]);
+        if (existing.length > 0) return res.status(400).json({ message: 'Material already exists' });
+
+        const [result] = await pool.execute(
+            'INSERT INTO recyclable_types (material_name, icon_url) VALUES (?, ?)',
+            [material_name, icon_url]
+        );
+        res.status(201).json({ message: 'Material added successfully', id: result.insertId });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error adding material' });
+    }
+});
+
+app.put('/materials/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    const { material_name, icon_url } = req.body;
+    try {
+        const [result] = await pool.execute(
+            'UPDATE recyclable_types SET material_name=?, icon_url=? WHERE id=?',
+            [material_name, icon_url, id]
+        );
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Material not found' });
+        res.json({ message: 'Material updated successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error updating material' });
+    }
+});
+
+app.delete('/materials/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await pool.execute('DELETE FROM recyclable_types WHERE id=?', [id]);
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Material not found' });
+        res.json({ message: 'Material deleted successfully' });
+    } catch (err) {
+        if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+            return res.status(400).json({ message: 'Cannot delete material that is in use' });
+        }
+        console.error(err);
+        res.status(500).json({ message: 'Server error deleting material' });
+    }
+});
+
 // 3. Add a new drop-off point (Admin only)
 app.post('/points', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     const { name, address, postal_code, latitude, longitude } = req.body;
@@ -251,6 +310,7 @@ app.get('/logs', authenticateToken, async (req, res) => {
     try {
         let query = `
             SELECT l.id, l.weight_kg, l.logged_at, 
+                   l.material_id, l.point_id,
                    m.material_name, p.name as point_name, u.username
             FROM recycling_logs l
             JOIN recyclable_types m ON l.material_id = m.id
@@ -271,6 +331,30 @@ app.get('/logs', authenticateToken, async (req, res) => {
         res.status(500).json({ message: 'Server error fetching logs' });
     }
 });
+
+app.get('/logs/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const query = `
+            SELECT l.id, l.weight_kg, l.logged_at, 
+                   l.material_id, l.point_id,
+                   m.material_name, p.name as point_name, u.username
+            FROM recycling_logs l
+            JOIN recyclable_types m ON l.material_id = m.id
+            JOIN drop_off_points p ON l.point_id = p.id
+            JOIN users u ON l.user_id = u.id
+            WHERE l.id = ?
+        `;
+        const [rows] = await pool.query(query, [id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'Log not found' });
+        res.json(rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error fetching log' });
+    }
+});
+
+
 
 
 // 4. Submit a recycling log
