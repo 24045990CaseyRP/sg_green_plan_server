@@ -3,9 +3,7 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
-
 const fs = require('fs');
-
 const app = express();
 const port = 3000;
 const cors = require("cors");
@@ -20,9 +18,7 @@ const allowedOrigins = [
 app.use(
     cors({
         origin: function (origin, callback) {
-            // allow requests with no origin (Postman/server-to-server)
-            if (!origin) return callback(null, true);
-
+            if (!origin) return callback(null, true); // Allow requests with no origin (e.g., Postman)
             if (allowedOrigins.includes(origin)) {
                 return callback(null, true);
             }
@@ -33,8 +29,7 @@ app.use(
         credentials: false,
     })
 );
-// 1. Create a Connection Pool based on your DBConfig
-// This is more efficient than creating a new connection for every request
+
 const dbConfig = {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -46,7 +41,6 @@ const dbConfig = {
     queueLimit: 0,
 };
 
-// Check if Aiven SSL cert exists
 if (fs.existsSync('./ca.pem')) {
     dbConfig.ssl = {
         ca: fs.readFileSync('./ca.pem'),
@@ -54,14 +48,7 @@ if (fs.existsSync('./ca.pem')) {
     };
     console.log('SSL Certificate found and loaded.');
 } else {
-    // Fallback for local development or if SSL not strictly enforced/provided differently
-    // Aiven REQUIRES SSL, so this might fail if file is missing.
-    // However, we set a default empty object or just don't set ssl key if not found.
-    // For Aiven, usually just having ssl: { rejectUnauthorized: false } works if CA isn't strictly checked,
-    // but best practice is to use the CA.
     console.log('Warning: ca.pem not found. Connecting without specific SSL CA config (might fail for Aiven).');
-
-    // Some setups might just need this:
     dbConfig.ssl = { rejectUnauthorized: false };
 }
 
@@ -74,11 +61,14 @@ const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
-    if (!token) return res.sendStatus(401);
+    if (!token) return res.sendStatus(401); // No token, unauthorized
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403);
-        req.user = user;
+        if (err) {
+            console.error("JWT verification failed:", err); // Log any errors
+            return res.sendStatus(403); // Invalid token, forbidden
+        }
+        req.user = user; // Attach user info from token to the request object
         next();
     });
 };
@@ -86,53 +76,14 @@ const authenticateToken = (req, res, next) => {
 // Middleware to authorize roles
 const authorizeRole = (roles) => {
     return (req, res, next) => {
+        console.log("User Role:", req.user?.role);  // Log the user's role for debugging
         if (!roles.includes(req.user.role)) {
+            console.log("Access denied: User does not have the required role");
             return res.status(403).json({ message: 'Access denied' });
         }
         next();
     };
 };
-
-// Register Route
-app.post('/register', async (req, res) => {
-    const { username, password, confirmPassword, role } = req.body;
-
-    // 1. Basic Validation
-    if (!username || !password || !confirmPassword || !role) {
-        return res.status(400).json({ message: 'All fields are required' });
-    }
-
-    if (password !== confirmPassword) {
-        return res.status(400).json({ message: 'Passwords do not match' });
-    }
-
-    if (!['admin', 'user'].includes(role)) {
-        return res.status(400).json({ message: 'Invalid role' });
-    }
-
-    try {
-        // 2. Check if username exists
-        const [existingUsers] = await pool.query('SELECT id FROM users WHERE username = ?', [username]);
-        if (existingUsers.length > 0) {
-            return res.status(400).json({ message: 'Username already exists' });
-        }
-
-        // 3. Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // 4. Insert User
-        const [result] = await pool.execute(
-            'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-            [username, hashedPassword, role]
-        );
-
-        res.status(201).json({ message: 'User registered successfully' });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Server error during registration' });
-    }
-});
 
 // Login Route
 app.post('/login', async (req, res) => {
@@ -153,13 +104,12 @@ app.post('/login', async (req, res) => {
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
         res.json({ token, role: user.role, username: user.username });
     } catch (err) {
-        console.error(err);
+        console.error("Error during login:", err);
         res.status(500).json({ message: 'Server error during login' });
     }
 });
 
-// 1. Get all drop-off points (with accepted materials)
-// User: Can view. Admin: Can view.
+// Get all drop-off points
 app.get('/points', authenticateToken, async (req, res) => {
     try {
         const query = `
@@ -174,7 +124,7 @@ app.get('/points', authenticateToken, async (req, res) => {
         const [rows] = await pool.query(query);
         res.json(rows);
     } catch (err) {
-        console.error(err);
+        console.error("Error fetching drop-off points:", err);
         res.status(500).json({ message: 'Server error fetching points' });
     }
 });
@@ -259,7 +209,7 @@ app.post('/points', authenticateToken, authorizeRole(['admin']), async (req, res
         );
         res.status(201).json({ message: `Point ${name} added successfully`, id: result.insertId });
     } catch (err) {
-        console.error(err);
+        console.error("Error adding drop-off point:", err);
         res.status(500).json({ message: 'Server error - could not add point' });
     }
 });
@@ -360,15 +310,31 @@ app.get('/logs/:id', authenticateToken, async (req, res) => {
 // 4. Submit a recycling log
 app.post('/logs', authenticateToken, async (req, res) => {
     const { point_id, material_id, weight_kg } = req.body;
-    const user_id = req.user.id; // Get from token
+
+    console.log("Received data:", { point_id, material_id, weight_kg }); // Log incoming data
+
+    const user_id = req.user.id; // Get user_id from token
     try {
+        // Check if point_id exists in the drop_off_points table
+        const [pointExists] = await pool.query('SELECT 1 FROM drop_off_points WHERE id = ?', [point_id]);
+        if (pointExists.length === 0) {
+            return res.status(400).json({ message: "Invalid point_id" });
+        }
+
+        // Check if material_id exists in the recyclable_types table
+        const [materialExists] = await pool.query('SELECT 1 FROM recyclable_types WHERE id = ?', [material_id]);
+        if (materialExists.length === 0) {
+            return res.status(400).json({ message: "Invalid material_id" });
+        }
+
+        // If both exist, insert the log
         await pool.execute(
             'INSERT INTO recycling_logs (point_id, material_id, weight_kg, user_id) VALUES (?, ?, ?, ?)',
             [point_id, material_id, weight_kg, user_id]
         );
         res.status(201).json({ message: 'Recycling log added successfully' });
     } catch (err) {
-        console.error(err);
+        console.error("Error adding log:", err);
         res.status(500).json({ message: 'Server error - could not add log' });
     }
 });
