@@ -25,13 +25,22 @@ module.exports = (pool, authenticateToken, authorizeRole) => {
 
     // Add a new drop-off point (Admin only)
     router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-        const { name, address, postal_code, latitude, longitude, status } = req.body;
+        const { name, address, postal_code, latitude, longitude, status, materials } = req.body;
         try {
             const [result] = await pool.execute(
                 'INSERT INTO drop_off_points (name, address, postal_code, latitude, longitude, status) VALUES (?, ?, ?, ?, ?, ?)',
                 [name, address, postal_code, latitude, longitude, status || 'Active']
             );
-            res.status(201).json({ message: `Point ${name} added successfully`, id: result.insertId });
+
+            const pointId = result.insertId;
+
+            // Add materials if provided
+            if (materials && Array.isArray(materials) && materials.length > 0) {
+                const values = materials.map(mId => [pointId, mId]);
+                await pool.query('INSERT INTO point_materials (point_id, material_id) VALUES ?', [values]);
+            }
+
+            res.status(201).json({ message: `Point ${name} added successfully`, id: pointId });
         } catch (err) {
             console.error("Error adding drop-off point:", err);
             res.status(500).json({ message: 'Server error - could not add point' });
@@ -41,7 +50,7 @@ module.exports = (pool, authenticateToken, authorizeRole) => {
     // Update a drop-off point (Admin only)
     router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
         const { id } = req.params;
-        const { name, address, postal_code, latitude, longitude, status } = req.body;
+        const { name, address, postal_code, latitude, longitude, status, materials } = req.body;
         try {
             const [result] = await pool.execute(
                 'UPDATE drop_off_points SET name=?, address=?, postal_code=?, latitude=?, longitude=?, status=? WHERE id=?',
@@ -50,6 +59,18 @@ module.exports = (pool, authenticateToken, authorizeRole) => {
 
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Point not found' });
+            }
+
+            // Update materials if provided
+            if (materials && Array.isArray(materials)) {
+                // First, remove existing materials for this point
+                await pool.execute('DELETE FROM point_materials WHERE point_id = ?', [id]);
+
+                // Then, insert new ones if any
+                if (materials.length > 0) {
+                    const values = materials.map(mId => [id, mId]);
+                    await pool.query('INSERT INTO point_materials (point_id, material_id) VALUES ?', [values]);
+                }
             }
 
             res.json({ message: `Point ${name} updated successfully` });
