@@ -9,7 +9,8 @@ module.exports = (pool, authenticateToken, authorizeRole) => {
             const query = `
                 SELECT 
                     p.id, p.name, p.address, p.postal_code, p.latitude, p.longitude, p.status,
-                    GROUP_CONCAT(m.material_name SEPARATOR ', ') AS accepted_materials
+                    GROUP_CONCAT(m.material_name SEPARATOR ', ') AS accepted_materials,
+                    GROUP_CONCAT(m.id SEPARATOR ',') AS accepted_material_ids
                 FROM drop_off_points p
                 LEFT JOIN point_materials pm ON p.id = pm.point_id
                 LEFT JOIN recyclable_types m ON pm.material_id = m.id
