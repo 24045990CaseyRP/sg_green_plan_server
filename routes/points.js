@@ -25,11 +25,11 @@ module.exports = (pool, authenticateToken, authorizeRole) => {
 
     // Add a new drop-off point (Admin only)
     router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-        const { name, address, postal_code, latitude, longitude } = req.body;
+        const { name, address, postal_code, latitude, longitude, status } = req.body;
         try {
             const [result] = await pool.execute(
-                'INSERT INTO drop_off_points (name, address, postal_code, latitude, longitude) VALUES (?, ?, ?, ?, ?)',
-                [name, address, postal_code, latitude, longitude]
+                'INSERT INTO drop_off_points (name, address, postal_code, latitude, longitude, status) VALUES (?, ?, ?, ?, ?, ?)',
+                [name, address, postal_code, latitude, longitude, status || 'Active']
             );
             res.status(201).json({ message: `Point ${name} added successfully`, id: result.insertId });
         } catch (err) {
@@ -41,11 +41,11 @@ module.exports = (pool, authenticateToken, authorizeRole) => {
     // Update a drop-off point (Admin only)
     router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
         const { id } = req.params;
-        const { name, address, postal_code, latitude, longitude } = req.body;
+        const { name, address, postal_code, latitude, longitude, status } = req.body;
         try {
             const [result] = await pool.execute(
-                'UPDATE drop_off_points SET name=?, address=?, postal_code=?, latitude=?, longitude=? WHERE id=?',
-                [name, address, postal_code, latitude, longitude, id]
+                'UPDATE drop_off_points SET name=?, address=?, postal_code=?, latitude=?, longitude=?, status=? WHERE id=?',
+                [name, address, postal_code, latitude, longitude, status, id]
             );
 
             if (result.affectedRows === 0) {
