@@ -85,84 +85,27 @@ const authorizeRole = (roles) => {
     };
 };
 
-// Login Route
-app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-    try {
-        const [users] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
-        const user = users[0];
-
-        if (!user) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
-        res.json({ token, role: user.role, username: user.username });
-    } catch (err) {
-        console.error("Error during login:", err);
-        res.status(500).json({ message: 'Server error during login' });
-    }
-});
-
-// Get all drop-off points
-app.get('/points', authenticateToken, async (req, res) => {
-    try {
-        const query = `
-            SELECT 
-                p.id, p.name, p.address, p.postal_code, p.latitude, p.longitude, p.status,
-                GROUP_CONCAT(m.material_name SEPARATOR ', ') AS accepted_materials
-            FROM drop_off_points p
-            LEFT JOIN point_materials pm ON p.id = pm.point_id
-            LEFT JOIN recyclable_types m ON pm.material_id = m.id
-            GROUP BY p.id
-        `;
-        const [rows] = await pool.query(query);
-        res.json(rows);
-    } catch (err) {
-        console.error("Error fetching drop-off points:", err);
-        res.status(500).json({ message: 'Server error fetching points' });
-    }
-});
-
-// Add a new drop-off point (Admin only)
-app.post('/points', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    const { name, address, postal_code, latitude, longitude } = req.body;
-    try {
-        const [result] = await pool.execute(
-            'INSERT INTO drop_off_points (name, address, postal_code, latitude, longitude) VALUES (?, ?, ?, ?, ?)',
-            [name, address, postal_code, latitude, longitude]
-        );
-        res.status(201).json({ message: `Point ${name} added successfully`, id: result.insertId });
-    } catch (err) {
-        console.error("Error adding drop-off point:", err);
-        res.status(500).json({ message: 'Server error - could not add point' });
-    }
-});
-
 // Submit a recycling log
 app.post('/logs', authenticateToken, async (req, res) => {
     const { point_id, material_id, weight_kg } = req.body;
-    console.log("Received data:", { point_id, material_id, weight_kg }); // Log incoming data
+    console.log("Received data:", { point_id, material_id, weight_kg }); // Log incoming data for debugging
 
     const user_id = req.user.id; // Get user_id from token
     try {
-        // Check if point_id and material_id exist in the respective tables
+        // Check if point_id exists in the drop_off_points table
         const [pointExists] = await pool.query('SELECT 1 FROM drop_off_points WHERE id = ?', [point_id]);
         if (pointExists.length === 0) {
             return res.status(400).json({ message: "Invalid point_id" });
         }
 
+        // Check if material_id exists in the recyclable_types table
         const [materialExists] = await pool.query('SELECT 1 FROM recyclable_types WHERE id = ?', [material_id]);
         if (materialExists.length === 0) {
+            console.log("Invalid material_id:", material_id);  // Log the invalid material_id
             return res.status(400).json({ message: "Invalid material_id" });
         }
 
-        // If both exist, insert the log
+        // If both point_id and material_id are valid, insert the log
         await pool.execute(
             'INSERT INTO recycling_logs (point_id, material_id, weight_kg, user_id) VALUES (?, ?, ?, ?)',
             [point_id, material_id, weight_kg, user_id]
