@@ -88,20 +88,23 @@ const authorizeRole = (roles) => {
 // Submit a recycling log
 app.post('/logs', authenticateToken, async (req, res) => {
     const { point_id, material_id, weight_kg } = req.body;
-    console.log("Received data:", { point_id, material_id, weight_kg }); // Log incoming data for debugging
+
+    console.log("Received point_id:", point_id); // Log point_id
+    console.log("Received material_id:", material_id); // Log material_id
 
     const user_id = req.user.id; // Get user_id from token
     try {
         // Check if point_id exists in the drop_off_points table
         const [pointExists] = await pool.query('SELECT 1 FROM drop_off_points WHERE id = ?', [point_id]);
         if (pointExists.length === 0) {
+            console.log("Invalid point_id:", point_id); // Log invalid point_id
             return res.status(400).json({ message: "Invalid point_id" });
         }
 
         // Check if material_id exists in the recyclable_types table
         const [materialExists] = await pool.query('SELECT 1 FROM recyclable_types WHERE id = ?', [material_id]);
         if (materialExists.length === 0) {
-            console.log("Invalid material_id:", material_id);  // Log the invalid material_id
+            console.log("Invalid material_id:", material_id);  // Log invalid material_id
             return res.status(400).json({ message: "Invalid material_id" });
         }
 
