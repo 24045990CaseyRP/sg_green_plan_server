@@ -147,8 +147,22 @@ app.post('/points', authenticateToken, authorizeRole(['admin']), async (req, res
 // Submit a recycling log
 app.post('/logs', authenticateToken, async (req, res) => {
     const { point_id, material_id, weight_kg } = req.body;
-    const user_id = req.user.id; // Get user_id from decoded token
+    console.log("Received data:", { point_id, material_id, weight_kg }); // Log incoming data
+
+    const user_id = req.user.id; // Get user_id from token
     try {
+        // Check if point_id and material_id exist in the respective tables
+        const [pointExists] = await pool.query('SELECT 1 FROM drop_off_points WHERE id = ?', [point_id]);
+        if (pointExists.length === 0) {
+            return res.status(400).json({ message: "Invalid point_id" });
+        }
+
+        const [materialExists] = await pool.query('SELECT 1 FROM recyclable_types WHERE id = ?', [material_id]);
+        if (materialExists.length === 0) {
+            return res.status(400).json({ message: "Invalid material_id" });
+        }
+
+        // If both exist, insert the log
         await pool.execute(
             'INSERT INTO recycling_logs (point_id, material_id, weight_kg, user_id) VALUES (?, ?, ?, ?)',
             [point_id, material_id, weight_kg, user_id]
